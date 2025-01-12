@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片压缩 | 硕某的米奇妙妙工具_a1</title>
+</head>
+<body>
+    <h4>将图片大小压缩到指定范围 / Upload and Compress Image</h4>
+    <form action="/learn" method="post" enctype="multipart/form-data" id="uploadForm">
+        <label for="max_size_kb">指定图片最大的文件大小 / Max File Size (KB):</label>
+        <input type="number" id="max_size_kb" name="max_size_kb" min="1" required>
+        <br><br>
+        <label for="image">请上传图片 / Select Image File:</label>
+        <input type="file" id="image" name="image" accept="image/*" required>
+        <br><br>
+        <div id="dimensions-section" style="display:none;">
+            <label for="min_width">最小宽度 / Min Width: </label>
+            <input type="number" id="min_width" name="min_width" min="1" oninput="updateDimensions()" required>
+            <br>
+            <label for="min_height">最小高度 / Min Height:</label>
+            <input type="number" id="min_height" name="min_height" min="1" oninput="updateDimensions()" required>
+            <br>
+            <p><b>提示：</b>如果不缩小宽高，能够压缩的文件大小是有限制的，可能会超过指定文件大小</p>
+        </div>
+        <button type="submit">获取压缩后的图片</button>
+    </form>
+    <script>
+        let originalAspectRatio = null;
+        let originalFileSize = null;
+
+        document.getElementById('image').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        document.getElementById('min_width').value = this.width;
+                        document.getElementById('min_height').value = this.height;
+                        originalAspectRatio = this.width / this.height;
+                        document.getElementById('dimensions-section').style.display = 'block';
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+
+                // Store the original file size in KB
+                originalFileSize = (file.size / 1024).toFixed(2); // Convert bytes to KB and round to 2 decimal places
+            }
+        });
+
+        function updateDimensions() {
+            if (originalAspectRatio === null) return;
+
+            const minWidth = parseFloat(document.getElementById('min_width').value);
+            const minHeight = parseFloat(document.getElementById('min_height').value);
+
+            if (!isNaN(minWidth) && minWidth > 0) {
+                document.getElementById('min_height').value = Math.round(minWidth / originalAspectRatio);
+            } else if (!isNaN(minHeight) && minHeight > 0) {
+                document.getElementById('min_width').value = Math.round(minHeight * originalAspectRatio);
+            }
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', function(event) {
+            if (originalAspectRatio === null || originalFileSize === null) return; // No image uploaded yet
+
+            const maxFileSize = parseFloat(document.getElementById('max_size_kb').value);
+            const minWidth = parseFloat(document.getElementById('min_width').value);
+            const minHeight = parseFloat(document.getElementById('min_height').value);
+
+            if (isNaN(maxFileSize) || isNaN(minWidth) || isNaN(minHeight)) {
+                alert("请输入有效的数值！");
+                event.preventDefault(); // Prevent form submission
+                return;
+            }
+
+            // Validate file size
+            if (maxFileSize > originalFileSize) {
+                alert(`请输入不大于原图大小（${originalFileSize} KB）的数值！`);
+                event.preventDefault(); // Prevent form submission
+                return;
+            }
+
+            const currentAspectRatio = minWidth / minHeight;
+
+            // Validate aspect ratio
+            if (Math.abs(currentAspectRatio - originalAspectRatio) > 0.01) { // Allow small floating point error
+                alert("输入的宽高比与原图不符，请保持宽高的比例一致！");
+                event.preventDefault(); // Prevent form submission
+            }
+        });
+    </script>
+</body>
+</html>
