@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>图片压缩 | 硕某的米奇妙妙工具_a1</title>
+    <title>图片压缩与裁剪 | 硕某的米奇妙妙工具_a1</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.css">
+    <link rel="shortcut icon" href="#"/>
 </head>
 <body>
     <h4>将图片大小压缩到指定范围 / Upload and Compress Image</h4>
@@ -16,15 +18,24 @@
         <br><br>
         <div id="dimensions-section" style="display:none;">
             <label for="min_width">最小宽度 / Min Width: </label>
-            <input type="number" id="min_width" name="min_width" min="1" oninput="updateDimensions()" required>
+            <input type="number" id="min_width" name="min_width" min="1" required>
             <br>
             <label for="min_height">最小高度 / Min Height:</label>
-            <input type="number" id="min_height" name="min_height" min="1" oninput="updateDimensions()" required>
+            <input type="number" id="min_height" name="min_height" min="1" required>
             <br>
             <p><b>提示：</b>如果不缩小宽高，能够压缩的文件大小是有限制的，可能会超过指定文件大小</p>
         </div>
+        <button type="button" id="cropButton">裁剪图片</button>
         <button type="submit">获取压缩后的图片</button>
     </form>
+    <div id="cropper-modal" class="modal" style="display:none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); z-index: 1000;">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 5px; width: 80vw; height: 80vh; overflow: auto;">
+            <button type="button" id="confirmCrop">确认裁剪</button>
+            <span class="close" id="closeModal">&times;</span>
+            <img id="cropper-image" src="" alt="Croppable Image" style="max-width: 100%; max-height: 100%;">
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.js"></script>
     <script>
         let originalAspectRatio = null;
         let originalFileSize = null;
@@ -34,34 +45,76 @@
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
+                    document.getElementById('cropper-image').src = e.target.result;
+
+                    // 等待图片加载完成之后再初始化 cropper
+                    const imgElement = document.getElementById('cropper-image');
+                    imgElement.onload = function() {
                         document.getElementById('min_width').value = this.width;
                         document.getElementById('min_height').value = this.height;
                         originalAspectRatio = this.width / this.height;
                         document.getElementById('dimensions-section').style.display = 'block';
                     };
-                    img.src = e.target.result;
                 };
                 reader.readAsDataURL(file);
-
-                // Store the original file size in KB
-                originalFileSize = (file.size / 1024).toFixed(2); // Convert bytes to KB and round to 2 decimal places
+                originalFileSize = (file.size / 1024).toFixed(2);
             }
         });
 
-        function updateDimensions() {
-            if (originalAspectRatio === null) return;
+        function initializeCropper() {
+            const imgElement = document.getElementById('cropper-image');
+            if (window.cropper) {
+                window.cropper.destroy(); // 销毁旧的 cropper 实例（如果存在）
+            }
+            window.cropper = new Cropper(imgElement, {
+                viewMode: 1,
+                modal: true,
+                cropBoxResizable: true, // 用户可以调整裁剪框的大小
+                crop: function(event) {
+                    // 可以在这里处理裁剪后的数据
+                }
+            });
+        }
 
-            const minWidth = parseFloat(document.getElementById('min_width').value);
-            const minHeight = parseFloat(document.getElementById('min_height').value);
+        // 当用户点击 "裁剪图片" 按钮时显示模态框并初始化 cropper
+        document.getElementById('cropButton').addEventListener('click', function() {
+            document.getElementById('cropper-modal').style.display = 'block';
+            initializeCropper();
+        });
 
-            if (!isNaN(minWidth) && minWidth > 0) {
-                document.getElementById('min_height').value = Math.round(minWidth / originalAspectRatio);
-            } else if (!isNaN(minHeight) && minHeight > 0) {
-                document.getElementById('min_width').value = Math.round(minHeight * originalAspectRatio);
+        // 当用户点击 "确认裁剪" 按钮时裁剪图片
+        document.getElementById('confirmCrop').addEventListener('click', function() {
+            if (window.cropper) {
+                const canvas = window.cropper.getCroppedCanvas();
+                canvas.toBlob(function(blob) {
+                    const newFile = new File([blob], 'cropped-image.jpg', { type: 'image/jpeg' });
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(newFile);
+                    document.getElementById('image').files = dataTransfer.files;
+                    document.getElementById('image').dispatchEvent(new Event('change'));
+                    // 关闭模态框
+                    closeModal();
+                }, 'image/jpeg');
+            }
+        });
+
+        // 点击模态框外或者关闭按钮关闭模态框
+        document.getElementById('closeModal').addEventListener('click', closeModal);
+
+        function closeModal() {
+            document.getElementById('cropper-modal').style.display = 'none';
+            if (window.cropper) {
+                window.cropper.destroy(); // 销毁 cropper 实例
+                window.cropper = null; // 删除 window.cropper 引用
             }
         }
+
+        // 点击模态框外区域关闭模态框
+        document.getElementById('cropper-modal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeModal();
+            }
+        });
 
         document.getElementById('uploadForm').addEventListener('submit', function(event) {
             if (originalAspectRatio === null || originalFileSize === null) return; // No image uploaded yet
