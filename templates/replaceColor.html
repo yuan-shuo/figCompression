@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>更换图片底色</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/spectrum/1.8.1/spectrum.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/spectrum/1.8.1/spectrum.min.css"/>
+</head>
+<body>
+
+<h1>更换图片底色</h1>
+
+<form id="replace-color-form" enctype="multipart/form-data">
+  <input type="file" name="image" id="image-upload" accept="image/*"><br><br>
+
+  <!-- 容差滑动条 -->
+  <label for="tolerance">容差值：<span id="tolerance-value">30</span></label><br>
+  <input type="range" min="0" max="100" value="30" class="slider" id="tolerance" name="tolerance"><br><br>
+
+  <!-- 点击获取目标颜色 -->
+  <div id="image-container">
+    <p>点击图片获取目标颜色：</p>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <img id="preview" style="max-width: 100%; height: auto; cursor: pointer;" />
+  </div>
+
+  <!-- 替换颜色选择器 -->
+  <label for="replacement_color">选择要替换的颜色：</label>
+  <input type="text" id="replacement_color" name="replacement_color" value="0,0,0" /><br><br>
+
+  <!-- 新增的隐藏 input -->
+  <input type="hidden" name="target_color" id="target_color_input">
+
+  <button type="submit">开始替换颜色</button>
+</form>
+
+<script>
+  let selectedColor = { r: 255, g: 255, b: 255 };
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const preview = document.getElementById('preview');
+
+  // 图片上传预览
+  $('#image-upload').change(function () {
+    const file = this.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        preview.src = e.target.result;
+        preview.onload = function () {
+          canvas.width = preview.width;
+          canvas.height = preview.height;
+          ctx.drawImage(preview, 0, 0);
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // 点击图片获取颜色
+  $('#preview').click(function (e) {
+    const rect = preview.getBoundingClientRect();
+    const x = Math.floor(e.clientX - rect.left);
+    const y = Math.floor(e.clientY - rect.top);
+
+    const pixel = ctx.getImageData(x, y, 1, 1).data;
+    selectedColor = { r: pixel[0], g: pixel[1], b: pixel[2] };
+
+    alert("已选择目标颜色：RGB(" + pixel[0] + ", " + pixel[1] + ", " + pixel[2] + ")");
+    $('#target_color_input').val(pixel.slice(0, 3).join(','));
+  });
+
+  // 滑动条实时显示容差值
+  $('#tolerance').on('input', function () {
+    $('#tolerance-value').text($(this).val());
+  });
+
+  // 调色板初始化
+  $("#replacement_color").spectrum({
+    color: "#000",
+    preferredFormat: "rgb",
+    showInput: true,
+    move: function (color) {
+      const rgb = color.toRgb();
+      $(this).val(`${rgb.r},${rgb.g},${rgb.b}`);
+    },
+    change: function (color) {
+      const rgb = color.toRgb();
+      $(this).val(`${rgb.r},${rgb.g},${rgb.b}`);
+    }
+  });
+
+  // 表单提交
+  $('#replace-color-form').on('submit', function (e) {
+    e.preventDefault();
+
+    const formData = new FormData(this);
+
+    fetch('/replace_color', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      if (!response.ok) throw new Error('Server error');
+      return response.blob();
+    })
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = blob.type.includes('image/jpeg') ? 'replaced_image.jpg' : 'replaced_image.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    })
+    .catch(err => {
+      alert("处理失败：" + err.message);
+    });
+  });
+</script>
+
+</body>
+</html>
